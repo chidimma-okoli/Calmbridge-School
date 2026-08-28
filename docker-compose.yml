@@ -1,0 +1,34 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    container_name: calmbridge-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+    container_name: calmbridge-backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    container_name: calmbridge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: calmbridge
+      POSTGRES_PASSWORD: calmbridge_password
+      POSTGRES_DB: calmbridge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
