@@ -66,6 +66,7 @@ jobs:
   docker:
     name: Docker - Build
     runs-on: ubuntu-latest
+
     needs:
       - backend
       - frontend
@@ -93,3 +94,62 @@ jobs:
 
       - name: Check Docker Compose configuration
         run: docker compose config
+
+
+  security:
+    name: Security - Container Scan
+    runs-on: ubuntu-latest
+
+    needs:
+      - docker
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        run: |
+          docker build \
+            -f backend/dockerfile \
+            -t calmbridge-backend:scan \
+            ./backend
+
+      - name: Build frontend image
+        run: |
+          docker build \
+            -f frontend/dockerfile \
+            -t calmbridge-frontend:scan \
+            ./frontend
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | sudo gpg --dearmor \
+            -o /usr/share/keyrings/trivy.gpg
+
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] \
+            https://aquasecurity.github.io/trivy-repo/deb \
+            generic main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Scan backend image
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            calmbridge-backend:scan
+
+      - name: Scan frontend image
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            calmbridge-frontend:scan
