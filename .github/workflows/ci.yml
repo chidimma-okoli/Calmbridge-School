@@ -1,3 +1,4 @@
+```yaml
 name: Calmbridge School CI
 
 on:
@@ -7,6 +8,10 @@ on:
   pull_request:
     branches:
       - main
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
 
@@ -127,14 +132,13 @@ jobs:
       - name: Install Trivy
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget
+          sudo apt-get install -y wget gnupg
+
           wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key \
             | sudo gpg --dearmor \
             -o /usr/share/keyrings/trivy.gpg
 
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] \
-            https://aquasecurity.github.io/trivy-repo/deb \
-            generic main" \
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
             | sudo tee /etc/apt/sources.list.d/trivy.list
 
           sudo apt-get update
@@ -153,3 +157,46 @@ jobs:
             --severity HIGH,CRITICAL \
             --exit-code 1 \
             calmbridge-frontend:scan
+
+
+  publish:
+    name: Publish Images - GHCR
+    runs-on: ubuntu-latest
+
+    needs:
+      - backend
+      - frontend
+      - docker
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/calmbridge-backend:latest
+            ghcr.io/${{ github.repository_owner }}/calmbridge-backend:${{ github.sha }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/calmbridge-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/calmbridge-frontend:${{ github.sha }}
