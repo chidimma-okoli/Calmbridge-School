@@ -6,11 +6,13 @@ export const metadata: Metadata = {
   description: "Calmbridge School Management Platform",
 };
 
+type RootLayoutProps = {
+  children: React.ReactNode;
+};
+
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: RootLayoutProps) {
   return (
     <html lang="en">
       <body>{children}</body>
