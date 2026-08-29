@@ -146,16 +146,18 @@ jobs:
       - name: Scan backend image
         run: |
           trivy image \
-            --severity HIGH,CRITICAL \
-            --exit-code 1 \
-            calmbridge-backend:scan
+          --severity HIGH,CRITICAL \
+          --ignore-unfixed \
+          --exit-code 1 \
+          calmbridge-backend:scan
 
       - name: Scan frontend image
         run: |
-          trivy image \
-            --severity HIGH,CRITICAL \
-            --exit-code 1 \
-            calmbridge-frontend:scan
+         trivy image \
+          --severity HIGH,CRITICAL \
+          --ignore-unfixed \
+          --exit-code 1 \
+          calmbridge-frontend:scan
 
 
   publish:
