@@ -11,13 +11,13 @@ on:
       - main
       - develop
 
-# Minimum permissions required by this workflow
+# Minimum permissions required
 permissions:
   contents: read
 
 jobs:
-  build-and-security:
-    name: Build and Security Checks
+  frontend-ci:
+    name: Frontend Build and Security
     runs-on: ubuntu-latest
 
     steps:
@@ -30,17 +30,18 @@ jobs:
 
 
       # ==========================================
-      # 2. Set up Node.js 22
+      # 2. Set up Node.js
       # ==========================================
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
 
       # ==========================================
-      # 3. Verify Node and npm
+      # 3. Check Node.js and npm
       # ==========================================
       - name: Check Node.js and npm
         run: |
@@ -51,14 +52,16 @@ jobs:
       # ==========================================
       # 4. Install dependencies
       # ==========================================
-      - name: Install dependencies
+      - name: Install frontend dependencies
+        working-directory: frontend
         run: npm ci
 
 
       # ==========================================
-      # 5. Check dependency vulnerabilities
+      # 5. npm security audit
       # ==========================================
       - name: npm security audit
+        working-directory: frontend
         run: npm audit --audit-level=high
         continue-on-error: true
 
@@ -67,43 +70,39 @@ jobs:
       # 6. Build Next.js application
       # ==========================================
       - name: Build Next.js application
+        working-directory: frontend
         run: npm run build
 
 
       # ==========================================
-      # 7. Build Docker image
+      # 7. Build frontend Docker image
       # ==========================================
-      - name: Build Docker image
-        run: |
-          docker build \
-            --tag calmbridge-frontend:${{ github.sha }} \
-            .
+      - name: Build frontend Docker image
+        working-directory: frontend
+        run: docker build -t calmbridge-frontend:${{ github.sha }} .
 
 
       # ==========================================
-      # 8. Install Trivy
-      # ==========================================
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.3
-
-
-      # ==========================================
-      # 9. Scan source files
+      # 8. Trivy filesystem scan
       # ==========================================
       - name: Trivy filesystem scan
-        run: |
-          trivy fs \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            .
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: frontend
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 0
 
 
       # ==========================================
-      # 10. Scan Docker image
+      # 9. Trivy Docker image scan
       # ==========================================
-      - name: Trivy Docker image scan
-        run: |
-          trivy image \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            calmbridge-frontend:${{ github.sha }}
+      - name: Trivy frontend Docker image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          scan-ref: calmbridge-frontend:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 0
