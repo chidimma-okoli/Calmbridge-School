@@ -2,32 +2,111 @@
 name: Deploy Calmbridge School
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - "Calmbridge CI"
+    types:
+      - completed
     branches:
       - main
 
 jobs:
   deploy:
     name: Deploy to EC2
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     runs-on: ubuntu-latest
 
     steps:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.2
+
         with:
           host: ${{ vars.EC2_HOST }}
           username: ${{ vars.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+
           script: |
+            set -e
+
+            echo "======================================"
+            echo "Starting Calmbridge School deployment"
+            echo "======================================"
+
             cd ~/Calmbridge-School
 
-            echo "Pulling latest code..."
-            git pull origin main
+            echo "Fetching latest repository information..."
+            git fetch origin main
+
+            echo "Saving previous working commit..."
+            PREVIOUS_COMMIT=$(git rev-parse HEAD)
+
+            echo "Previous commit:"
+            git rev-parse --short "$PREVIOUS_COMMIT"
+
+            DEPLOY_SHA="${{ github.event.workflow_run.head_sha }}"
+
+            echo "CI-approved commit:"
+            echo "$DEPLOY_SHA"
+
+            echo "Checking out main branch..."
+            git checkout main
+
+            echo "Deploying CI-approved commit..."
+            git reset --hard "$DEPLOY_SHA"
+
+            echo "Current deployed commit:"
+            git rev-parse --short HEAD
 
             echo "Rebuilding Calmbridge containers..."
             docker compose up -d --build
 
-            echo "Deployment complete."
+            echo "Waiting for application to start..."
+            sleep 10
 
-            echo "Running containers:"
+            echo "Checking container status..."
             docker compose ps
+
+            echo "Checking backend health..."
+
+            if curl -f http://localhost:8000/health; then
+
+              echo ""
+              echo "======================================"
+              echo "Calmbridge School deployment successful"
+              echo "======================================"
+
+              echo "Deployed commit:"
+              git rev-parse --short HEAD
+
+            else
+
+              echo ""
+              echo "======================================"
+              echo "Deployment failed!"
+              echo "Starting rollback..."
+              echo "======================================"
+
+              echo "Rolling back to:"
+              git rev-parse --short "$PREVIOUS_COMMIT"
+
+              git reset --hard "$PREVIOUS_COMMIT"
+
+              echo "Rebuilding previous version..."
+              docker compose up -d --build
+
+              echo "Waiting for rollback to complete..."
+              sleep 10
+
+              echo "Checking application after rollback..."
+              curl -f http://localhost:8000/health
+
+              echo ""
+              echo "======================================"
+              echo "Rollback completed"
+              echo "======================================"
+
+              exit 1
+
+            fi
