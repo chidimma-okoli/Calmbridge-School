@@ -25,8 +25,6 @@ services:
       POSTGRES_USER: calmbridge
       POSTGRES_PASSWORD: calmbridge_password
       POSTGRES_DB: calmbridge
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
